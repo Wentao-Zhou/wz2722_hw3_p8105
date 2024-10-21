@@ -1,0 +1,327 @@
+---
+title: "wz2722_p8105_hw3"
+author: "wentao zhou"
+date: "2024-10-14"
+output: "github_document"
+---
+problem 1
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(ggridges)
+library(patchwork)
+library(p8105.datasets)
+library(dplyr)  # Load dplyr to use the pipe operator (%>%)
+library(tidyr)  # Load tidyr for data manipulation functions like `separate`
+
+# Set knitr options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+
+# Apply the ggplot2 theme
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+# Set options for continuous and discrete color scales
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+# Set default color and fill scales for discrete variables
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
+# Load the NOAA weather data
+data("ny_noaa")
+
+# Fix the typo (y_noaa -> ny_noaa)
+ny_noaa %>% 
+  count(snow) %>%
+  arrange(desc(n))
+
+ny_noaa = 
+  ny_noaa %>% 
+  separate(date, into = c("year", "month", "day"), convert = TRUE) %>% 
+  mutate(
+    tmax = as.numeric(tmax),
+    tmin = as.numeric(tmin)
+  )
+
+ny_noaa %>% 
+  group_by(id, year, month) %>% 
+  filter(month %in% c(1, 7)) %>% 
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE)) %>% 
+  ggplot(aes(x = year, y = mean_tmax, group = id, color = id)) + 
+  geom_point() + 
+  geom_path() +
+  facet_grid(~month) +
+  labs(title = "Mean monthly temperature for each station across years for January and July")
+
+# Hex plot
+hex = 
+  ny_noaa %>% 
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_hex()
+
+# Ridge plot
+ridge = 
+  ny_noaa %>% 
+  filter(snow < 100, snow > 0) %>%
+  ggplot(aes(x = snow, y = as.factor(year))) + 
+  geom_density_ridges()
+
+# Combine hex and ridge plots using patchwork
+hex + ridge
+
+```
+
+
+
+#problem 2.
+
+```{r}
+#Part.1: Load and Clean the Data
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Load data
+
+demographic_data <- read.csv("data/nhanes_accel.csv")
+accelerometer_data <- read.csv("data/nhanes_covar.csv", skip = 4)
+
+# Merge datasets on SEQN (participant ID)
+merged_data <- merge(demographic_data, accelerometer_data, by = "SEQN")
+
+# Clean the data: remove participants less than 21 years old and those with missing demographic data
+cleaned_data <- merged_data %>%
+  filter(age >= 21, !is.na(sex), !is.na(education))
+
+# Convert categorical variables to factors for easier interpretation
+cleaned_data <- cleaned_data %>%
+  mutate(
+    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")),
+    education = factor(education, levels = c(1, 2, 3, 4), 
+                       labels = c("Less than high school", "High school", "Some college", "College or more"))
+  )
+
+# Part 2.Visualization of age distribution of males and females
+# Create a summary table for the number of men and women in each education category
+education_sex_table <- cleaned_data %>%
+  group_by(education, sex) %>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from = sex, values_from = count, values_fill = 0)
+
+# Display the table
+print(education_sex_table)
+# Visualization of age distribution by sex and education level
+ggplot(cleaned_data, aes(x = age, fill = sex)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~education) +
+  labs(title = "Age Distribution by Sex and Education Level", x = "Age", y = "Density") +
+  theme_minimal()
+
+```
+```
+
+# Load demographic data and accelerometer data
+
+demographic_data <- read.csv("data/nhanes_accel.csv")
+accelerometer_data <- read.csv("path_to_nhanesr_covar.csv")
+
+# Merge datasets on participant ID
+merged_data <- merge(demographic_data, accelerometer_data, by = "participant_id")
+
+# Clean data: exclude participants younger than 21 and those with missing demographic data
+clean_data <- merged_data %>%
+  filter(age >= 21, !is.na(sex), !is.na(education))
+
+# Ensure reasonable data types
+clean_data <- clean_data %>%
+  mutate(
+    sex = factor(sex, levels = c("Male", "Female")),
+    education = factor(education, levels = c("Less than high school", "High school", "Some college", "College or more")),
+    age = as.numeric(age)
+  )
+
+```
+```{r}
+# Part.3 Total activity variable chart 
+# Aggregate accelerometer data: sum of MIMS values for each participant
+cleaned_data$total_activity <- rowSums(cleaned_data[, grep("^min", names(cleaned_data))], na.rm = TRUE)
+
+# Plot total activity against age, compare men and women, and facet by education level
+ggplot(cleaned_data, aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess") +
+  facet_wrap(~education) +
+  labs(title = "Total Activity vs Age by Education Level and Sex", x = "Age", y = "Total Activity") +
+  theme_minimal()
+# Reshape accelerometer data from wide to long format for time-course analysis
+activity_long <- cleaned_data %>%
+  pivot_longer(cols = starts_with("min"), names_to = "minute", values_to = "MIMS_value") %>%
+  mutate(minute = as.numeric(gsub("min", "", minute)))
+
+# Ensure the correct columns are present and the reshaped dataset is properly structured
+activity_long <- cleaned_data %>%
+  # Pivot the minute columns to long format
+  pivot_longer(cols = starts_with("min"), 
+               names_to = "minute", 
+               values_to = "MIMS_value") %>%
+  # Remove the "min" text and ensure 'minute' is numeric
+  mutate(minute = as.numeric(gsub("min", "", minute)))
+
+# Check the structure of the resulting dataframe
+str(activity_long)
+
+# Part4. 24-hour activity time chart
+# Plot time course of activity by education level and sex
+ggplot(activity_long, aes(x = minute, y = MIMS_value, color = sex)) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~education) +
+  labs(title = "24-hour Activity Time Course by Education Level and Sex", 
+       x = "Minute of the Day", 
+       y = "Activity (MIMS)") +
+  theme_minimal()
+
+```
+#Result Explanation：
+Table of Gender Ratios in Various Educational Categories:
+
+This table allows us to see the distribution of men and women with different levels of education. For example, it can reveal whether a certain level of education is more represented by a certain gender.
+Age distribution chart:
+
+The age distribution map shows the age differences of different education levels and genders. The difference in peak age between males and females may indicate different trends in physical exercise or health-related behaviors among different population groups.
+Total activity and age:
+
+The overall activity chart helps us determine how physical activity changes with age and whether there are significant differences between genders. For example, at different levels of education, women's activity levels may be higher or lower than men's. A smooth trend line will highlight the overall pattern.
+24-hour activity schedule route:
+
+This chart shows the changes in physical activity throughout the day. We can observe whether individuals of certain educational levels or genders are more active at specific times. For example, people in a group who are more active in the morning may indicate that they prefer to exercise early in the morning.
+
+
+
+#problem 3
+```{r}
+#Part 1 clean data
+unzip("citibike.zip", exdir = "citibike_data")
+files <- list.files("citibike_data/citibike", pattern = "*.csv", full.names = TRUE)
+
+# Clean the column names
+citibike_data <- clean_names(citibike_data)
+
+# Load each dataframe separately
+df_jan_2020 <- read_csv("citibike/Jan 2020 Citi.csv.zip")
+df_july_2020 <- read_csv("citibike/July 2020 Citi.csv.zip")
+df_jan_2024 <- read_csv("citibike/Jan 2024 Citi.csv.zip")
+df_july_2024 <- read_csv("citibike/July 2024 Citi.csv.zip")
+
+# Assign year and month before combining
+df_jan_2020 <- df_jan_2020 %>% mutate(year = 2020, month = "January")
+df_july_2020 <- df_july_2020 %>% mutate(year = 2020, month = "July")
+df_jan_2024 <- df_jan_2024 %>% mutate(year = 2024, month = "January")
+df_july_2024 <- df_july_2024 %>% mutate(year = 2024, month = "July")
+
+# Combine the data 
+citibike_data <- bind_rows(df_jan_2020, df_july_2020, df_jan_2024, df_july_2024)
+
+#part 2. Count number
+# Count the total rides by year, month, and rider type
+rides_by_year_month <- citibike_data %>%
+  group_by(year, month, member_casual) %>%
+  summarise(total_rides = n()) %>%
+  ungroup()
+
+# Print the result
+print(rides_by_year_month)
+
+```
+Cycling frequency statistics by year and month: This table shows the number of rides taken by casual riders and members in January and July of 2020 and 2024.
+
+```{r}
+#Part 3. Top 5
+# Filter data for July 2024
+july_2024_data <- citibike_data %>%
+  filter(year == 2024, month == "July")
+
+# Find the top 5 most popular starting stations
+top_stations_july_2024 <- july_2024_data %>%
+  group_by(start_station_name) %>%
+  summarise(num_rides = n()) %>%
+  arrange(desc(num_rides)) %>%
+  head(5)
+
+# Print the top 5 stations
+print(top_stations_july_2024)
+
+```
+Top 5 of Most Popular Starting Stations in July 2024
+
+
+```{r}
+#Part 4. The impact of day of the week, month, and year
+# Calculate median ride duration by day of the week, month, and year
+median_ride_duration <- citibike_data %>%
+  group_by(year, month, weekdays) %>%
+  summarise(median_duration = median(duration)) %>%
+  ungroup()
+
+# Plot the median ride duration
+library(ggplot2)
+ggplot(median_ride_duration, aes(x = weekdays, y = median_duration, color = year)) +
+  geom_line(aes(group = interaction(year, month))) +
+  facet_wrap(~ month) +
+  labs(title = "Median Ride Duration by Day, Month, and Year",
+       x = "Day of the Week", y = "Median Ride Duration (minutes)") +
+  theme_minimal()
+
+```
+
+```{r}
+#Part 5 The impact of month, membership status, and bicycle type
+# Filter data for 2024
+citibike_2024 <- citibike_data %>%
+  filter(year == 2024)
+
+# Create boxplots for ride duration distribution by month, membership status, and bike type
+ggplot(citibike_2024, aes(x = month, y = duration, fill = member_casual)) +
+  geom_boxplot() +
+  facet_wrap(~ rideable_type) +
+  labs(title = "Ride Duration Distribution in 2024 by Month, Membership Status, and Bike Type",
+       x = "Month", y = "Ride Duration (minutes)") +
+  theme_minimal()
+
+```
+Conment Part
+Comparison of Cycling Behavior between Members and Non Members
+By analyzing the cycling data of members and non members in different years and months, it can be seen that the usage frequency of members is significantly higher than that of non members. For example, in July 2024, the number of rides by members was almost three times that of non members. This may be due to the lower cost of cycling for members, who tend to use Citi Bike more frequently, especially during commuting. However, non members' cycling frequency also significantly increased in July, indicating that they mainly engage in leisure cycling during the summer.
+
+In contrast, the growth difference between members and non members in 2020 was not as significant as in 2024, which may be related to factors such as system expansion, optimization of membership system, and market promotion, resulting in a decrease in Citi in 2024
+
+In addition, there are also differences in the duration of cycling. The data shows that members typically ride shorter bikes and may be more used for commuting, while non members ride longer in the summer, indicating that they use Citi Bike more for leisure purposes.
+
+2. Comparison of System Expansion between 2020 and 2024
+The expansion of the Citi Bike system has had a significant impact on user behavior from 2020 to 2024. Especially in July 2024, the number of rides has significantly increased compared to 2020, especially in the use of electric bicycles. The introduction and popularization of electric bicycles have driven user growth and attracted more commuters. In contrast, the number of electric bicycles in 2020 was relatively small, and users mainly relied on classic bicycles.
+
+This growth demonstrates the important role of electric bicycles in enhancing the attractiveness of the system, not only improving commuting convenience, but also shortening riding time, making users choose Citi Bike as a commuting tool more frequently. Therefore, Citi Bike can further increase investment in electric bicycles in the future to optimize urban commuting.
+
+3. Seasonal cycling trends
+The difference in cycling volume between members in January and July is relatively small, indicating that they use Citi Bike more as a commuting tool rather than for entertainment. For non members, the significant increase in cycling volume in July indicates that they are more inclined to engage in leisure cycling during the summer. Therefore, Citi Bike is a reliable year-round mode of transportation for members, while non members exhibit seasonal usage characteristics.
+
+4. Comparison of the use of electric bicycles and classic bicycles
+The usage of electric bicycles will significantly increase in 2024, especially among the membership group. The data shows that the riding time of electric bicycles is usually shorter, but the frequency of use is higher, especially on weekdays. In contrast, electric bicycles have not yet become popular in 2020, and most users rely on classic bicycles.
+
+With the popularity of electric bicycles, travel convenience has greatly improved, especially in urban areas with high commuting demand. Therefore, Citi Bike can further expand the coverage of electric bicycles to meet the needs of more users.
+
+5. Changes in popular cycling sites
+By analyzing the most popular cycling stations in 2020 and 2024, it was found that the cycling demand in certain areas of the city has changed. The popular sites in July 2024 are mainly concentrated in commercial areas and transportation hubs, such as Pier 61 and University Pl&E 14 St, reflecting the increasing demand for commuting. The popular sites in 2020 are more scattered and used for leisure or short distance travel.
+
+With the expansion of the system and optimization of station layout, the use of Citi Bike will be concentrated in the core areas with busy commuting in 2024, further indicating that Citi Bike has become an important component of urban commuting.
+
+

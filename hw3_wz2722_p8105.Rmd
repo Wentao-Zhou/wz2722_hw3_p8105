@@ -7,7 +7,7 @@ output: html_document
 
 ```{r}
 #Problem 1
-```{r}
+
 library(p8105.datasets)
 data("ny_noaa")
 summary(ny_noaa)

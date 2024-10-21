@@ -2,7 +2,7 @@
 title: "wz2722_p8105_hw3"
 author: "wentao zhou"
 date: "2024-10-14"
-output: html_document
+output: "github_document"
 ---
 
 ```{r}

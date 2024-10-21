@@ -11,8 +11,8 @@ library(ggplot2)
 library(ggridges)
 library(patchwork)
 library(p8105.datasets)
-library(dplyr)  # Load dplyr to use the pipe operator (%>%)
-library(tidyr)  # Load tidyr for data manipulation functions like `separate`
+library(dplyr)  
+library(tidyr)  
 
 # Set knitr options
 knitr::opts_chunk$set(
